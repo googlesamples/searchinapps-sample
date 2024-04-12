@@ -35,7 +35,7 @@ import com.google.android.material.textfield.TextInputEditText;
 import java.util.Arrays;
 import java.util.List;
 
-/** Android activity demonstrating the usage of SearchInAppsService API. */
+/** Android activity demonstrating usage of SearchInAppsService API. */
 public class MainActivity extends AppCompatActivity
     implements GetSearchSuggestionsViewGeneratorCallback {
   static final int MAX_NUM_TRENDS = 3;
