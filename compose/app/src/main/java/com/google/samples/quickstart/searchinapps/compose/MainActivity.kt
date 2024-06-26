@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -49,6 +50,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.android.libraries.searchinapps.GetSearchSuggestionsViewGeneratorCallback
 import com.google.android.libraries.searchinapps.GetSearchSuggestionsViewOptions
 import com.google.android.libraries.searchinapps.GetTrendingSearchesViewOptions
+import com.google.android.libraries.searchinapps.LocationContext
+import com.google.android.libraries.searchinapps.LocationContext.CircularArea
+import com.google.android.libraries.searchinapps.LocationContext.GeographicalRestrictions
+import com.google.android.libraries.searchinapps.LocationContext.LatLng
 import com.google.android.libraries.searchinapps.SearchInAppsService
 import com.google.android.libraries.searchinapps.SearchSuggestionsViewGenerator
 import com.google.android.libraries.searchinapps.SearchSuggestionsViewOptions
@@ -89,7 +94,9 @@ class MainActivity : AppCompatActivity() {
     if (service == null) {
       service = SearchInAppsService.create(context)
     }
-    var text by remember { mutableStateOf("") }
+    var textInput by remember { mutableStateOf("") }
+    var locationInput by remember { mutableStateOf("") }
+
     val layout by viewModel.getLayout().collectAsStateWithLifecycle()
 
     var radioOptions =
@@ -102,16 +109,25 @@ class MainActivity : AppCompatActivity() {
     Column {
       Row(verticalAlignment = Alignment.CenterVertically) {
         OutlinedTextField(
-          value = text,
-          onValueChange = { text = it },
+          value = textInput,
+          onValueChange = { textInput = it },
           label = { Text(stringResource(R.string.search_hint)) },
-          modifier = Modifier.width(dimensionResource(R.dimen.textfield_width)),
+          modifier = Modifier.fillMaxWidth(),
         )
+      }
 
-        Spacer(
-          modifier = Modifier.width(dimensionResource(R.dimen.horizontal_spacer_width))
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        OutlinedTextField(
+          value = locationInput,
+          onValueChange = { locationInput = it },
+          label = { Text(stringResource(R.string.location_hint)) },
+          modifier = Modifier.fillMaxWidth(),
         )
+      }
 
+      Spacer(modifier = Modifier.height(dimensionResource(R.dimen.vertical_spacer_height)))
+
+      Row(verticalAlignment = Alignment.CenterVertically) {
         Button(
           modifier = Modifier.wrapContentWidth(),
           onClick = {
@@ -125,21 +141,35 @@ class MainActivity : AppCompatActivity() {
                   Toast.makeText(context, errorMessage, Toast.LENGTH_SHORT).show()
                 }
               }
-            var searchContexts: List<String> = listOf<String>(text)
+            var textContexts: List<String> = listOf<String>(textInput)
             var options: GetSearchSuggestionsViewOptions =
               GetSearchSuggestionsViewOptions()
-                .setTextContext(searchContexts)
+                .setTextContext(textContexts)
                 .setSearchSuggestionsViewOptions(SearchSuggestionsViewOptions().setLayout(layout))
+
+            if (!locationInput.isEmpty()) {
+              try {
+                options.setLocationContext(
+                  locationInput.split("|").map { buildLocationContext(it) }
+                )
+              } catch (e: IllegalArgumentException) {
+                Toast.makeText(
+                    this@MainActivity,
+                    "Invalid input for latitude, longitude or radius",
+                    Toast.LENGTH_SHORT,
+                  )
+                  .show()
+              }
+            }
+
             service?.getSearchSuggestionsView(options, callback)
           },
         ) {
           Text(stringResource(R.string.search_text))
         }
-      }
 
-      Spacer(modifier = Modifier.height(dimensionResource(R.dimen.vertical_spacer_height)))
+        Spacer(modifier = Modifier.width(dimensionResource(R.dimen.horizontal_spacer_width)))
 
-      Row {
         Button(
           onClick = {
             val callback =
@@ -201,5 +231,20 @@ class MainActivity : AppCompatActivity() {
   @Composable
   fun SearchSuggestionsPreview() {
     SearchSuggestionsUI()
+  }
+
+  private fun buildLocationContext(locationInput: String): LocationContext {
+    val latLngRadius = locationInput.split(",")
+
+    require(latLngRadius.size == 3) { "Invalid location input format" }
+
+    return LocationContext(
+      GeographicalRestrictions(
+        CircularArea(
+          LatLng(latLngRadius[0].trim().toDouble(), latLngRadius[1].trim().toDouble()),
+          latLngRadius[2].trim().toInt(),
+        )
+      )
+    )
   }
 }

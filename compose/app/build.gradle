@@ -22,7 +22,7 @@ android {
 
     defaultConfig {
         applicationId "com.google.samples.quickstart.searchinapps.compose"
-        minSdk 23
+        minSdk 21
         targetSdk 31
         versionCode 1
         versionName "1.0"
@@ -54,7 +54,7 @@ android {
 
 dependencies {
     implementation "com.google.android.gms:play-services-oss-licenses:17.0.0"
-    implementation "com.google.android.libraries.searchinapps:searchinapps:0.2.0"
+    implementation "com.google.android.libraries.searchinapps:searchinapps:0.3.0"
 
     implementation "androidx.activity:activity-compose:1.7.0"
     implementation "androidx.appcompat:appcompat:1.4.1"

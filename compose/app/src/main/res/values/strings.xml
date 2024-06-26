@@ -17,6 +17,7 @@
   <string name="app_name" translatable="false">Sample App for SearchInApps</string>
   <string name="search_text" translatable="false">Get suggestions</string>
   <string name="search_hint" translatable="false">Enter search context</string>
+  <string name="location_hint" translatable="false">Enter location latitude, longitude and radius</string>
   <string name="trending_text" translatable="false">Get trendings</string>
   <string name="compact_carousel_layout" translatable="false">Compact Carousel</string>
   <string name="carousel_layout" translatable="false">Carousel</string>

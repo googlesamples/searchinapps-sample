@@ -28,12 +28,17 @@ import androidx.lifecycle.ViewModelProvider;
 import com.google.android.libraries.searchinapps.GetSearchSuggestionsViewGeneratorCallback;
 import com.google.android.libraries.searchinapps.GetSearchSuggestionsViewOptions;
 import com.google.android.libraries.searchinapps.GetTrendingSearchesViewOptions;
+import com.google.android.libraries.searchinapps.LocationContext;
+import com.google.android.libraries.searchinapps.LocationContext.CircularArea;
+import com.google.android.libraries.searchinapps.LocationContext.GeographicalRestrictions;
+import com.google.android.libraries.searchinapps.LocationContext.LatLng;
 import com.google.android.libraries.searchinapps.SearchInAppsService;
 import com.google.android.libraries.searchinapps.SearchSuggestionsViewGenerator;
 import com.google.android.libraries.searchinapps.SearchSuggestionsViewOptions;
 import com.google.android.material.textfield.TextInputEditText;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /** Android activity demonstrating the usage of SearchInAppsService API. */
 public class MainActivity extends AppCompatActivity
@@ -76,16 +81,35 @@ public class MainActivity extends AppCompatActivity
             new View.OnClickListener() {
               @Override
               public void onClick(View v) {
-                String input =
+                String textInput =
                     String.valueOf(
                         ((TextInputEditText) findViewById(R.id.suggestion_input)).getText());
-                List<String> searchContext = Arrays.asList(input.split("\\s*,\\s*"));
-                service.getSearchSuggestionsView(
+                List<String> textContext = Arrays.asList(textInput.split("\\s*,\\s*"));
+                GetSearchSuggestionsViewOptions options =
                     new GetSearchSuggestionsViewOptions()
-                        .setTextContext(searchContext)
+                        .setTextContext(textContext)
                         .setSearchSuggestionsViewOptions(
-                            new SearchSuggestionsViewOptions().setLayout(model.getCheckedLayout())),
-                    MainActivity.this);
+                            new SearchSuggestionsViewOptions().setLayout(model.getCheckedLayout()));
+
+                String locationInput =
+                    String.valueOf(
+                        ((TextInputEditText) findViewById(R.id.location_input)).getText());
+                if (!locationInput.isEmpty()) {
+                  try {
+                    options.setLocationContext(
+                        Arrays.asList(locationInput.split("\\s*\\|\\s*")).stream()
+                            .map(MainActivity::buildLocationContext)
+                            .collect(Collectors.toList()));
+                  } catch (IllegalArgumentException e) {
+                    Toast.makeText(
+                            MainActivity.this,
+                            "Invalid input for latitude, longitude or radius",
+                            Toast.LENGTH_SHORT)
+                        .show();
+                  }
+                }
+
+                service.getSearchSuggestionsView(options, MainActivity.this);
               }
             });
     findViewById(R.id.trending_button)
@@ -126,5 +150,22 @@ public class MainActivity extends AppCompatActivity
       suggestionsContainer.removeAllViews();
       suggestionsContainer.addView(generator.populateView(this));
     }
+  }
+
+  private static LocationContext buildLocationContext(String locationInput)
+      throws IllegalArgumentException {
+    List<String> latLngRadius = Arrays.asList(locationInput.split("\\s*,\\s*"));
+
+    if (latLngRadius.size() != 3) {
+      throw new IllegalArgumentException();
+    }
+
+    return new LocationContext(
+        new GeographicalRestrictions(
+            new CircularArea(
+                new LatLng(
+                    Double.parseDouble(latLngRadius.get(0)),
+                    Double.parseDouble(latLngRadius.get(1))),
+                Integer.parseInt(latLngRadius.get(2)))));
   }
 }
