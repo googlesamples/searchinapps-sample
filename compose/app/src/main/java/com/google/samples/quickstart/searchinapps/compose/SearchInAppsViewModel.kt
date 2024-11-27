@@ -15,20 +15,35 @@
 package com.google.samples.quickstart.searchinapps.compose
 
 import androidx.lifecycle.ViewModel
+import com.google.android.libraries.searchinapps.SearchContentViewGenerator
 import com.google.android.libraries.searchinapps.SearchSuggestionsViewGenerator
 import com.google.android.libraries.searchinapps.SearchSuggestionsViewOptions
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 /** The ViewModel for the Jetpack Compose sample activity to store the data. */
 class SearchInAppsViewModel : ViewModel() {
-  private val searchSuggestionsViewGenerator = MutableStateFlow<SearchSuggestionsViewGenerator?>(null)
-  private val layout = MutableStateFlow<SearchSuggestionsViewOptions.Layout>(SearchSuggestionsViewOptions.Layout.COMPACT_CAROUSEL)
+  private val searchContentViewGenerator = MutableStateFlow<SearchContentViewGenerator?>(null)
+  private val searchSuggestionsViewGenerator =
+    MutableStateFlow<SearchSuggestionsViewGenerator?>(null)
+  private val layout =
+    MutableStateFlow<SearchSuggestionsViewOptions.Layout>(
+      SearchSuggestionsViewOptions.Layout.COMPACT_CAROUSEL
+    )
+
+  public fun setSearchContentViewGenerator(searchContentViewGenerator: SearchContentViewGenerator) {
+    this.searchContentViewGenerator.value = searchContentViewGenerator
+  }
+
+  public fun getSearchContentViewGenerator(): StateFlow<SearchContentViewGenerator?> {
+    return this.searchContentViewGenerator.asStateFlow()
+  }
 
   public fun setSearchSuggestionsViewGenerator(
-      searchSuggestionsViewGenerator: SearchSuggestionsViewGenerator) {
+    searchSuggestionsViewGenerator: SearchSuggestionsViewGenerator
+  ) {
     this.searchSuggestionsViewGenerator.value = searchSuggestionsViewGenerator
   }
 
@@ -41,6 +56,6 @@ class SearchInAppsViewModel : ViewModel() {
   }
 
   public fun updateLayout(layout: SearchSuggestionsViewOptions.Layout) {
-    this.layout.update {layout}
+    this.layout.update { layout }
   }
 }

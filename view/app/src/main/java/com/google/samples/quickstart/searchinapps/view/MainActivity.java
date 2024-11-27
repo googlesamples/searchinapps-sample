@@ -20,11 +20,14 @@ import static com.google.android.libraries.searchinapps.SearchSuggestionsViewOpt
 
 import android.os.Bundle;
 import android.view.View;
+import android.widget.LinearLayout;
 import android.widget.RadioGroup;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.lifecycle.ViewModelProvider;
+import com.google.android.libraries.searchinapps.GetSearchContentViewGeneratorCallback;
+import com.google.android.libraries.searchinapps.GetSearchContentViewOptions;
 import com.google.android.libraries.searchinapps.GetSearchSuggestionsViewGeneratorCallback;
 import com.google.android.libraries.searchinapps.GetSearchSuggestionsViewOptions;
 import com.google.android.libraries.searchinapps.GetTrendingSearchesViewOptions;
@@ -32,6 +35,8 @@ import com.google.android.libraries.searchinapps.LocationContext;
 import com.google.android.libraries.searchinapps.LocationContext.CircularArea;
 import com.google.android.libraries.searchinapps.LocationContext.GeographicalRestrictions;
 import com.google.android.libraries.searchinapps.LocationContext.LatLng;
+import com.google.android.libraries.searchinapps.SearchContentViewGenerator;
+import com.google.android.libraries.searchinapps.SearchContentViewOptions;
 import com.google.android.libraries.searchinapps.SearchInAppsService;
 import com.google.android.libraries.searchinapps.SearchSuggestionsViewGenerator;
 import com.google.android.libraries.searchinapps.SearchSuggestionsViewOptions;
@@ -48,6 +53,12 @@ public class MainActivity extends AppCompatActivity
   private SearchInAppsService service;
   private SearchInAppsViewModel model;
   private ConstraintLayout suggestionsContainer;
+  private LinearLayout searchContentContainer;
+  private int searchContentBlock = 0;
+  private int searchContentBlocksPerPage = 3;
+  private GetSearchContentViewGeneratorCallback searchContentCallback;
+  private SearchSuggestionsViewGenerator suggestionsGenerator;
+  private SearchContentViewGenerator contentGenerator;
 
   @Override
   public void onSuccess(SearchSuggestionsViewGenerator generator) {
@@ -68,8 +79,46 @@ public class MainActivity extends AppCompatActivity
     service = SearchInAppsService.create(this);
     model = new ViewModelProvider(this).get(SearchInAppsViewModel.class);
     suggestionsContainer = findViewById(R.id.suggestions_container);
+    searchContentContainer = findViewById(R.id.search_content_container);
     RadioGroup radioGroup = findViewById(R.id.layouts_group);
     SearchSuggestionsViewOptions.Layout checkedLayout = model.getCheckedLayout();
+    suggestionsGenerator = model.getSearchSuggestionsViewGenerator();
+    contentGenerator = model.getSearchContentViewGenerator();
+
+    searchContentCallback =
+        new GetSearchContentViewGeneratorCallback() {
+          @Override
+          public void onSuccess(SearchContentViewGenerator generator) {
+            contentGenerator = generator;
+            model.setSearchContentViewGenerator(generator);
+            searchContentBlock = 0;
+            searchContentContainer.removeAllViews();
+            while (searchContentBlock < generator.getSearchContentBlockCount()) {
+              searchContentContainer.addView(
+                  generator.populateView(MainActivity.this, searchContentBlock));
+              searchContentBlock++;
+            }
+          }
+
+          @Override
+          public void onLoadMoreSearchContentSuccess(SearchContentViewGenerator generator) {
+            while (searchContentBlock < generator.getSearchContentBlockCount()) {
+              searchContentContainer.addView(
+                  generator.populateView(MainActivity.this, searchContentBlock));
+              searchContentBlock++;
+            }
+          }
+
+          @Override
+          public void onLoadMoreSearchContentError(String errorMessage) {
+            Toast.makeText(MainActivity.this, errorMessage, Toast.LENGTH_SHORT).show();
+          }
+
+          @Override
+          public void onError(String errorMessage) {
+            Toast.makeText(MainActivity.this, errorMessage, Toast.LENGTH_SHORT).show();
+          }
+        };
     if (checkedLayout == null) {
       model.setCheckedLayout(
           radioGroup.getCheckedRadioButtonId() == R.id.compact_carousel_layout
@@ -125,11 +174,45 @@ public class MainActivity extends AppCompatActivity
                     MainActivity.this);
               }
             });
-    SearchSuggestionsViewGenerator generator = model.getSearchSuggestionsViewGenerator();
-    if (generator != null) {
-      generator.getViewOptions().setLayout(model.getCheckedLayout());
+    findViewById(R.id.search_content_button)
+        .setOnClickListener(
+            new View.OnClickListener() {
+              @Override
+              public void onClick(View v) {
+                String searchRepeatInput =
+                    String.valueOf(
+                        ((TextInputEditText) findViewById(R.id.search_repeat_input)).getText());
+                service.getSearchContentView(
+                    new GetSearchContentViewOptions()
+                        .setSearchRepeatContext(searchRepeatInput)
+                        .setNumberOfBlocksToRequest(searchContentBlocksPerPage)
+                        .setSearchContentViewOptions(
+                            new SearchContentViewOptions().setLayout(model.getCheckedLayout())),
+                    searchContentCallback);
+              }
+            });
+    findViewById(R.id.search_content_more_button)
+        .setOnClickListener(
+            new View.OnClickListener() {
+              @Override
+              public void onClick(View v) {
+                if (contentGenerator != null) {
+                  contentGenerator.loadMoreSearchContent(searchContentCallback);
+                }
+              }
+            });
+    if (suggestionsGenerator != null) {
+      suggestionsGenerator.getViewOptions().setLayout(model.getCheckedLayout());
       suggestionsContainer.removeAllViews();
-      suggestionsContainer.addView(generator.populateView(this));
+      suggestionsContainer.addView(suggestionsGenerator.populateView(this));
+    }
+    if (contentGenerator != null) {
+      contentGenerator.getSearchContentViewOptions().setLayout(model.getCheckedLayout());
+      searchContentContainer.removeAllViews();
+      while (searchContentBlock < contentGenerator.getSearchContentBlockCount()) {
+        searchContentContainer.addView(contentGenerator.populateView(this, searchContentBlock));
+        searchContentBlock++;
+      }
     }
   }
 
@@ -144,11 +227,18 @@ public class MainActivity extends AppCompatActivity
       default:
         model.setCheckedLayout(COMPACT_CAROUSEL);
     }
-    SearchSuggestionsViewGenerator generator = model.getSearchSuggestionsViewGenerator();
-    if (generator != null) {
-      generator.getViewOptions().setLayout(model.getCheckedLayout());
+    SearchSuggestionsViewGenerator suggestionsGenerator = model.getSearchSuggestionsViewGenerator();
+    if (suggestionsGenerator != null) {
+      suggestionsGenerator.getViewOptions().setLayout(model.getCheckedLayout());
       suggestionsContainer.removeAllViews();
-      suggestionsContainer.addView(generator.populateView(this));
+      suggestionsContainer.addView(suggestionsGenerator.populateView(this));
+    }
+    SearchContentViewGenerator contentGenerator = model.getSearchContentViewGenerator();
+    if (contentGenerator != null) {
+      contentGenerator.getSearchContentViewOptions().setLayout(model.getCheckedLayout());
+      int childCount = searchContentContainer.getChildCount();
+      searchContentContainer.removeViewAt(childCount - 1);
+      searchContentContainer.addView(contentGenerator.populateView(this, childCount - 1));
     }
   }
 
@@ -167,5 +257,11 @@ public class MainActivity extends AppCompatActivity
                     Double.parseDouble(latLngRadius.get(0)),
                     Double.parseDouble(latLngRadius.get(1))),
                 Integer.parseInt(latLngRadius.get(2)))));
+  }
+
+  @Override
+  public void onDestroy() {
+    service.shutDown();
+    super.onDestroy();
   }
 }

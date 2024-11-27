@@ -18,7 +18,10 @@
   <string name="search_text" translatable="false">Get suggestions</string>
   <string name="search_hint" translatable="false">Enter search context</string>
   <string name="location_hint" translatable="false">Enter location latitude, longitude and radius</string>
+  <string name="repeat_hint" translatable="false">Enter search repeat</string>
   <string name="trending_text" translatable="false">Get trendings</string>
+  <string name="search_content_text" translatable="false">Get content</string>
+  <string name="more_search_content_text" translatable="false">More content</string>
   <string name="compact_carousel_layout" translatable="false">Compact Carousel</string>
   <string name="carousel_layout" translatable="false">Carousel</string>
   <string name="tiling_layout" translatable="false">Tiling</string>

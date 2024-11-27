@@ -15,14 +15,24 @@
 package com.google.samples.quickstart.searchinapps.view;
 
 import androidx.lifecycle.ViewModel;
+import com.google.android.libraries.searchinapps.SearchContentViewGenerator;
 import com.google.android.libraries.searchinapps.SearchSuggestionsViewGenerator;
 import com.google.android.libraries.searchinapps.SearchSuggestionsViewOptions;
 
 /** The ViewModel for the View sample activity to store the data. */
 public class SearchInAppsViewModel extends ViewModel {
 
+  private SearchContentViewGenerator searchContentViewGenerator;
   private SearchSuggestionsViewGenerator searchSuggestionsViewGenerator;
   private SearchSuggestionsViewOptions.Layout checkedLayout;
+
+  public void setSearchContentViewGenerator(SearchContentViewGenerator searchContentViewGenerator) {
+    this.searchContentViewGenerator = searchContentViewGenerator;
+  }
+
+  public SearchContentViewGenerator getSearchContentViewGenerator() {
+    return this.searchContentViewGenerator;
+  }
 
   public void setSearchSuggestionsViewGenerator(
       SearchSuggestionsViewGenerator searchSuggestionsViewGenerator) {

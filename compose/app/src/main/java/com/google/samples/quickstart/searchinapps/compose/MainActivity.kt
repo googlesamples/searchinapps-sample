@@ -27,6 +27,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -34,6 +36,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -47,6 +50,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.google.android.libraries.searchinapps.GetSearchContentViewGeneratorCallback
+import com.google.android.libraries.searchinapps.GetSearchContentViewOptions
 import com.google.android.libraries.searchinapps.GetSearchSuggestionsViewGeneratorCallback
 import com.google.android.libraries.searchinapps.GetSearchSuggestionsViewOptions
 import com.google.android.libraries.searchinapps.GetTrendingSearchesViewOptions
@@ -54,14 +59,14 @@ import com.google.android.libraries.searchinapps.LocationContext
 import com.google.android.libraries.searchinapps.LocationContext.CircularArea
 import com.google.android.libraries.searchinapps.LocationContext.GeographicalRestrictions
 import com.google.android.libraries.searchinapps.LocationContext.LatLng
+import com.google.android.libraries.searchinapps.SearchContentViewGenerator
+import com.google.android.libraries.searchinapps.SearchContentViewOptions
 import com.google.android.libraries.searchinapps.SearchInAppsService
 import com.google.android.libraries.searchinapps.SearchSuggestionsViewGenerator
 import com.google.android.libraries.searchinapps.SearchSuggestionsViewOptions
 
 /** Jetpack activity demonstrating the usage of SearchInAppsService API. */
 class MainActivity : AppCompatActivity() {
-  private var service: SearchInAppsService? = null
-
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     setContent {
@@ -91,12 +96,22 @@ class MainActivity : AppCompatActivity() {
     viewModel: SearchInAppsViewModel = viewModel(),
   ) {
     var context = LocalContext.current
-    if (service == null) {
-      service = SearchInAppsService.create(context)
+    var service by remember {
+      mutableStateOf<SearchInAppsService?>(SearchInAppsService.create(context))
     }
     var textInput by remember { mutableStateOf("") }
     var locationInput by remember { mutableStateOf("") }
+    var searchRepeatInput by remember { mutableStateOf("") }
 
+    var searchContentBlockNumber by remember { mutableStateOf(0) }
+
+    val viewSuggestionsGenerator by
+      viewModel.getSearchSuggestionsViewGenerator().collectAsStateWithLifecycle()
+    val viewContentGenerator by
+      viewModel.getSearchContentViewGenerator().collectAsStateWithLifecycle()
+    viewContentGenerator?.let { viewContentGenerator ->
+      searchContentBlockNumber = viewContentGenerator.getSearchContentBlockCount()
+    }
     val layout by viewModel.getLayout().collectAsStateWithLifecycle()
 
     var radioOptions =
@@ -105,6 +120,8 @@ class MainActivity : AppCompatActivity() {
         stringResource(R.string.carousel_layout),
         stringResource(R.string.tiling_layout),
       )
+
+    DisposableEffect(Unit) { onDispose { service?.shutDown() } }
 
     Column {
       Row(verticalAlignment = Alignment.CenterVertically) {
@@ -121,6 +138,15 @@ class MainActivity : AppCompatActivity() {
           value = locationInput,
           onValueChange = { locationInput = it },
           label = { Text(stringResource(R.string.location_hint)) },
+          modifier = Modifier.fillMaxWidth(),
+        )
+      }
+
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        OutlinedTextField(
+          value = searchRepeatInput,
+          onValueChange = { searchRepeatInput = it },
+          label = { Text(stringResource(R.string.search_repeat_hint)) },
           modifier = Modifier.fillMaxWidth(),
         )
       }
@@ -195,6 +221,56 @@ class MainActivity : AppCompatActivity() {
 
       Spacer(modifier = Modifier.height(dimensionResource(R.dimen.vertical_spacer_height)))
 
+      val searchContentCallback =
+        object : GetSearchContentViewGeneratorCallback() {
+          override fun onSuccess(generator: SearchContentViewGenerator) {
+            viewModel.setSearchContentViewGenerator(generator)
+            searchContentBlockNumber = generator.getSearchContentBlockCount()
+          }
+
+          override fun onError(errorMessage: String) {
+            Toast.makeText(context, errorMessage, Toast.LENGTH_SHORT).show()
+          }
+
+          override fun onLoadMoreSearchContentSuccess(generator: SearchContentViewGenerator) {
+            searchContentBlockNumber = generator.getSearchContentBlockCount()
+          }
+
+          override fun onLoadMoreSearchContentError(errorMessage: String) {
+            Toast.makeText(context, errorMessage, Toast.LENGTH_SHORT).show()
+          }
+        }
+      Row(verticalAlignment = Alignment.CenterVertically) {
+        Button(
+          modifier = Modifier.wrapContentWidth(),
+          onClick = {
+            var options: GetSearchContentViewOptions =
+              GetSearchContentViewOptions()
+                .setSearchRepeatContext(searchRepeatInput)
+                .setNumberOfBlocksToRequest(3)
+                .setSearchContentViewOptions(SearchContentViewOptions().setLayout(layout))
+
+            service?.getSearchContentView(options, searchContentCallback)
+          },
+        ) {
+          Text(stringResource(R.string.search_content))
+        }
+
+        Spacer(modifier = Modifier.width(dimensionResource(R.dimen.horizontal_spacer_width)))
+
+        Button(
+          onClick = {
+            viewContentGenerator?.let { viewContentGenerator ->
+              viewContentGenerator.loadMoreSearchContent(searchContentCallback)
+            }
+          }
+        ) {
+          Text(stringResource(R.string.load_more_content))
+        }
+      }
+
+      Spacer(modifier = Modifier.height(dimensionResource(R.dimen.vertical_spacer_height)))
+
       Row {
         radioOptions.forEach { currentLayout ->
           Row(verticalAlignment = Alignment.CenterVertically) {
@@ -206,24 +282,45 @@ class MainActivity : AppCompatActivity() {
           }
         }
       }
-      val viewGenerator by
-        viewModel.getSearchSuggestionsViewGenerator().collectAsStateWithLifecycle()
-      ChipGroupUI(layout, viewGenerator)
+      ChipGroupUI(layout, viewSuggestionsGenerator)
+      SearchContentUI(layout, viewContentGenerator, searchContentBlockNumber)
     }
   }
 
   @Composable
   fun ChipGroupUI(
     layout: SearchSuggestionsViewOptions.Layout,
-    viewGenerator: SearchSuggestionsViewGenerator?,
+    viewSuggestionsGenerator: SearchSuggestionsViewGenerator?,
   ) {
-    viewGenerator?.let { viewGenerator ->
-      viewGenerator.getViewOptions().setLayout(layout)
+    viewSuggestionsGenerator?.let { viewSuggestionsGenerator ->
+      viewSuggestionsGenerator.getViewOptions().setLayout(layout)
       var context = LocalContext.current
       AndroidView(
-        factory = { context -> viewGenerator.populateView(context) },
-        update = { view -> viewGenerator.updateView(view, context) },
+        factory = { context -> viewSuggestionsGenerator.populateView(context) },
+        update = { view -> viewSuggestionsGenerator.updateView(view, context) },
       )
+    }
+  }
+
+  @Composable
+  fun SearchContentUI(
+    layout: SearchSuggestionsViewOptions.Layout,
+    viewContentGenerator: SearchContentViewGenerator?,
+    searchContentBlockNumber: Int,
+  ) {
+    viewContentGenerator?.let { viewContentGenerator ->
+      viewContentGenerator.getSearchContentViewOptions().setLayout(layout)
+      var context = LocalContext.current
+      Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+        for (index in 0..searchContentBlockNumber - 1) {
+          Row {
+            AndroidView(
+              factory = { context -> viewContentGenerator.populateView(context, index) },
+              update = { view -> viewContentGenerator.updateView(view, context) },
+            )
+          }
+        }
+      }
     }
   }
 
